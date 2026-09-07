@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "离线表单秒填",
+  "version": "0.1.0",
+  "description": "纯本地规则匹配的网页表单自动填充。无网络请求、无网络权限,资料只存在本机。",
+  "permissions": ["storage", "contextMenus", "activeTab", "scripting"],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "离线表单秒填"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_idle",
+      "all_frames": true
+    }
+  ]
+}

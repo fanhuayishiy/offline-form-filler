@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<style>
+  * { box-sizing: border-box; }
+  body { width: 460px; margin: 0; font: 14px/1.5 system-ui; background: #eef1f6; color: #222; }
+
+  /* ---------- 顶栏 ---------- */
+  header { display: flex; align-items: center; gap: 10px; padding: 14px 18px; background: #1f2533; color: #fff; }
+  header .logo { font-size: 20px; }
+  header h1 { margin: 0; font-size: 17px; font-weight: 700; }
+  header small { color: rgba(255,255,255,.55); font-size: 12px; margin-left: 4px; }
+
+  /* ---------- Tab 栏 ---------- */
+  .tabs { display: flex; background: #fff; border-bottom: 1px solid #e4e8f0; }
+  .tabs button { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 13px 0; border: 0; border-bottom: 2px solid transparent; background: none; cursor: pointer; font-size: 15px; color: #8a93a5; }
+  .tabs button.active { color: #2b6cf0; font-weight: 700; border-bottom-color: #2b6cf0; }
+
+  /* ---------- 面板 ---------- */
+  .page { padding: 16px 18px 20px; }
+  section { display: none; background: #fff; border: 1px solid #e4e8f0; border-radius: 12px; padding: 16px 18px 18px; }
+  section.active { display: block; }
+
+  /* ---------- 通用控件 ---------- */
+  .card { border: 1px solid #e4e8f0; border-radius: 10px; padding: 10px 12px; margin-bottom: 12px; display: flex; align-items: center; gap: 10px; }
+  .row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .row > label:not(.switch) { width: 96px; flex-shrink: 0; color: #333; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .row input[type=text], .row input:not([type]) { flex: 1; min-width: 0; padding: 8px 10px; border: 1px solid #dfe3ea; border-radius: 8px; font-size: 14px; }
+  .row input:focus { outline: none; border-color: #2b6cf0; }
+  select { flex: 1; min-width: 0; padding: 7px 8px; border: 1px solid #dfe3ea; border-radius: 8px; font-size: 14px; background: #fff; }
+
+  .btn { padding: 9px 18px; border: 0; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 500; }
+  .primary { background: #2b6cf0; color: #fff; }
+  .primary:hover { background: #245ed6; }
+  .ghost { background: #eef1f6; color: #333; }
+  .ghost:hover { background: #e3e8f0; }
+  .danger { background: #fdeaea; color: #e0453a; }
+  .danger:hover { background: #fbdcdc; }
+  .mini { padding: 6px 12px; font-size: 13px; }
+  .xdel { width: 28px; height: 32px; flex-shrink: 0; border: 0; border-radius: 8px; background: #fdeaea; color: #e0453a; font-size: 14px; cursor: pointer; }
+  .xdel:hover { background: #fbdcdc; }
+
+  /* ---------- 开关 ---------- */
+  .switch { position: relative; display: inline-block; width: 52px; height: 28px; flex-shrink: 0; }
+  .switch input { display: none; }
+  .slider { position: absolute; inset: 0; background: #cfd6e0; border-radius: 28px; transition: .2s; cursor: pointer; }
+  .slider:before { content: ""; position: absolute; width: 22px; height: 22px; left: 3px; top: 3px; background: #fff; border-radius: 50%; transition: .2s; box-shadow: 0 1px 3px rgba(0,0,0,.25); }
+  .switch input:checked + .slider { background: #2b6cf0; }
+  .switch input:checked + .slider:before { transform: translateX(24px); }
+  #autofill-text { font-weight: 500; white-space: nowrap; }
+  .muted { color: #8a93a5; white-space: nowrap; }
+
+  .actions { display: flex; gap: 10px; margin-top: 14px; }
+  #status { margin-top: 10px; color: #2e7d32; min-height: 18px; font-size: 13px; }
+  .hint { color: #8a93a5; font-size: 12.5px; line-height: 1.7; margin-top: 14px; }
+
+  /* ---------- 映射列表 ---------- */
+  .map { border: 1px solid #e4e8f0; border-radius: 10px; padding: 12px 14px; margin-bottom: 12px; }
+  .map .host { color: #8a93a5; font-size: 13px; }
+  .map .sel { font-family: Consolas, monospace; font-size: 13px; color: #8a93a5; word-break: break-all; margin-top: 2px; }
+  .map .val { margin-top: 6px; font-size: 14px; }
+  .map .val b { color: #2b6cf0; }
+  .empty { color: #9aa3b2; text-align: center; padding: 26px 0; border: 1px dashed #dfe3ea; border-radius: 10px; }
+</style>
+</head>
+<body>
+<header>
+  <span class="logo">🧩</span>
+  <h1>离线表单秒填</h1>
+  <small>数据仅存本机,无网络请求</small>
+</header>
+
+<div class="tabs">
+  <button data-tab="profile" class="active">
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg>
+    我的资料
+  </button>
+  <button data-tab="mappings">
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+    手动映射
+  </button>
+</div>
+
+<div class="page">
+  <!-- ================= 我的资料 ================= -->
+  <section id="tab-profile" class="active">
+    <div class="card">
+      <label style="font-weight:500">自动填充</label>
+      <label class="switch"><input type="checkbox" id="autofill"><span class="slider"></span></label>
+      <span id="autofill-text">已关闭</span>
+      <span class="muted" style="margin-left:auto">已填写的字段自动跳过</span>
+    </div>
+
+    <div class="card">
+      <label style="font-weight:500">资料套</label>
+      <select id="profile-select"></select>
+      <button id="prof-add" class="btn ghost mini">＋ 新建</button>
+      <button id="prof-rename" class="btn ghost mini">改名</button>
+      <button id="prof-del" class="btn danger mini">删除</button>
+    </div>
+
+    <div id="field-list"></div>
+
+    <div class="row">
+      <input id="new-field-label" placeholder="新参数名,如:家长姓名 / 车牌号">
+      <button id="field-add" class="btn ghost mini" style="flex-shrink:0">＋ 添加参数</button>
+    </div>
+
+    <div class="actions">
+      <button id="save" class="btn primary">保存资料</button>
+      <button id="fill" class="btn ghost">⚡ 填充当前页面</button>
+    </div>
+    <div id="status"></div>
+
+    <div class="row" style="margin-top:10px">
+      <button id="export" class="btn ghost mini">⬇ 导出数据</button>
+      <button id="import" class="btn ghost mini">⬆ 导入数据</button>
+      <input type="file" id="import-file" accept=".json,application/json" style="display:none">
+      <span class="muted" style="font-size:12px">换浏览器/电脑时带走资料与映射</span>
+    </div>
+
+    <div class="hint">自定义参数名会参与自动识别:页面上出现"家长姓名"字样即可命中同名参数。识别不了的字段,右键「设置此字段」从下拉里绑定参数。</div>
+  </section>
+
+  <!-- ================= 手动映射 ================= -->
+  <section id="tab-mappings">
+    <div id="map-list"></div>
+
+    <div><button id="clear-maps" class="btn danger">清空全部映射</button></div>
+
+    <div class="hint">映射 = 在某个网站上,把指定字段绑定到资料参数(跟随资料)或填固定值。在目标输入框上右键「设置此字段」即可添加。</div>
+  </section>
+</div>
+
+<script src="popup.js"></script>
+</body>
+</html>
