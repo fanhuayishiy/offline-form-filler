@@ -7,7 +7,11 @@
 //   activeProfileId: "..."                                          // 当前使用哪套
 //   mappings: [ { selector, host, key?, value? } ]                  // 手动映射:key=绑定资料参数,value=固定值
 //   autofill: true/false                                            // 自动填充开关
+//
+// 整个文件包在 IIFE 里:补注入时页面里可能已驻留旧版脚本(重载扩展前打开的页面),
+// 顶层 const 重名会让注入直接失败;闭包隔离后重复注入互不影响。
 
+(() => {
 // ---------- 内置字段别名字典(可自行增删) ----------
 const DICT = {
   name:     ["姓名", "真实姓名", "名字", "联系人", "收件人", "name", "fullname", "full_name", "realname", "real_name", "contact"],
@@ -328,25 +332,27 @@ function captureField() {
 
   panel.querySelector("#ff-cancel").onclick = () => panel.remove();
   valInp.focus();
-  panel.querySelector("#ff-save").onclick = async () => {
-    const key = keySel.value;
-    const value = valInp.value;
-    const { mappings = [] } = await chrome.storage.local.get("mappings");
-    const host = location.hostname;
-    const next = mappings.filter((m) => !(m.selector === selector && m.host === host));
-    next.push(key ? { selector, key, host } : { selector, value, host });
-    await chrome.storage.local.set({ mappings: next });
-    const fillVal = key ? fieldValue(key) : value;
-    if (fillVal) {
-      setNativeValue(el, fillVal);
-      flash(el);
-    }
-    panel.remove();
-    toast(
-      key
-        ? `已绑定资料「${activeFields[key] ? activeFields[key].label : key}」,资料改了自动跟着变`
-        : `已记住该字段,以后自动填"${value}"`
-    );
+  panel.querySelector("#ff-save").onclick = () => {
+    guard(async () => {
+      const key = keySel.value;
+      const value = valInp.value;
+      const { mappings = [] } = await chrome.storage.local.get("mappings");
+      const host = location.hostname;
+      const next = mappings.filter((m) => !(m.selector === selector && m.host === host));
+      next.push(key ? { selector, key, host } : { selector, value, host });
+      await chrome.storage.local.set({ mappings: next });
+      const fillVal = key ? fieldValue(key) : value;
+      if (fillVal) {
+        setNativeValue(el, fillVal);
+        flash(el);
+      }
+      panel.remove();
+      toast(
+        key
+          ? `已绑定资料「${activeFields[key] ? activeFields[key].label : key}」,资料改了自动跟着变`
+          : `已记住该字段,以后自动填"${value}"`
+      );
+    });
   };
 }
 
@@ -435,3 +441,13 @@ chrome.runtime.onMessage.addListener((msg) => {
   if (msg.action === "fill") doFill();
   if (msg.action === "capture") captureField();
 });
+
+// 补注入路径的备用触发通道:注入脚本后直接派发 DOM 事件,不依赖消息端口
+window.addEventListener("ff-fill", () => doFill());
+window.addEventListener("ff-capture", () => captureField());
+
+// 供 test.js 获取内部函数(生产环境无副作用)
+if (typeof globalThis.__FF_TEST_HOOK__ === "function") {
+  globalThis.__FF_TEST_HOOK__({ doFill });
+}
+})();

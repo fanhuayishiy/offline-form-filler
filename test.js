@@ -88,6 +88,9 @@ global.chrome = {
 };
 
 // ---- 加载真实的 content.js ----
+// content.js 现在整体包裹在 IIFE 里(防重复注入的 const 冲突),
+// 通过钩子把 doFill 暴露出来供测试调用。
+globalThis.__FF_TEST_HOOK__ = (api) => (globalThis.doFill = api.doFill);
 eval(fs.readFileSync(__dirname + "/content.js", "utf8"));
 
 (async () => {

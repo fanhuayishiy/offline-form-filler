@@ -19,11 +19,12 @@ chrome.runtime.onInstalled.addListener(() => {
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   if (!tab || tab.id == null) return;
   const action = info.menuItemId === "ff-capture" ? "capture" : "fill";
+  const eventName = action === "capture" ? "ff-capture" : "ff-fill";
   try {
     await chrome.tabs.sendMessage(tab.id, { action });
   } catch (e) {
     // 页面在扩展安装/刷新前打开,没有脚本:右键菜单点击已授予 activeTab,现场补注入。
-    // 同 popup:先只注入顶层 frame,避免 allFrames 在跨域 iframe 页整体失败。
+    // 与 popup 相同:顶层注入优先,再用 DOM 事件触发,不依赖消息端口。
     if (!/^https?:/i.test(tab.url || "")) return; // 内部页面无法注入
     try {
       await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["content.js"] });
@@ -32,6 +33,12 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
         .executeScript({ target: { tabId: tab.id, allFrames: true }, files: ["content.js"] })
         .catch(() => {});
     }
-    await chrome.tabs.sendMessage(tab.id, { action }).catch(() => {});
+    await chrome.scripting
+      .executeScript({
+        target: { tabId: tab.id },
+        func: (name) => window.dispatchEvent(new Event(name)),
+        args: [eventName],
+      })
+      .catch(() => {});
   }
 });

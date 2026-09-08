@@ -190,31 +190,33 @@ $("#fill").onclick = async () => {
     try {
       await chrome.tabs.sendMessage(tab.id, { action: "fill" });
     } catch (e) {
-      // 页面是在扩展安装/刷新(↻)之前打开的,里面还没有脚本。
-      // 点击弹窗已授予 activeTab 权限,这里现场补注入,无需手动刷新。
-      // 注意:必须先只注入顶层 frame —— allFrames:true 要求对每个子 frame 都有
-      // host 权限,遇到跨域 iframe(在线客服等)会让整个调用失败。
+      // 页面在扩展安装/刷新(↻)前打开,没有脚本:点击弹窗已授予 activeTab,现场补注入。
+      // 1) 注入脚本文件(顶层 frame 优先——allFrames 需要子 frame 权限,跨域 iframe 会让调用整体失败);
+      // 2) 再注入一个小函数派发 DOM 事件触发填充——不依赖消息端口,内核兼容性最好。
       let injErr = "";
       try {
         await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["content.js"] });
       } catch (err) {
-        injErr = String((err && err.message) || err);
+        injErr = String((err && err.message) || err); // 页面可能已驻留旧脚本:重名报错属预期,走事件通道即可
         await chrome.scripting
           .executeScript({ target: { tabId: tab.id, allFrames: true }, files: ["content.js"] })
           .catch(() => {});
       }
       try {
-        await chrome.tabs.sendMessage(tab.id, { action: "fill" });
+        await chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          func: (name) => window.dispatchEvent(new Event(name)),
+          args: ["ff-fill"],
+        });
       } catch (err) {
-        console.error("[form-filler] 注入失败:", injErr || err);
-        return setStatus(
-          "注入失败" + (injErr ? `:${injErr.slice(0, 60)}` : "") + ",请刷新页面后重试"
-        );
+        console.error("[form-filler] 注入失败:", injErr, err);
+        return setStatus("注入失败:" + String((err && err.message) || injErr || err).slice(0, 70));
       }
     }
     setStatus(`已填充:${(tab.title || tab.url).slice(0, 24)}`);
   } catch (e) {
-    setStatus("注入失败,请刷新页面后重试");
+    console.error("[form-filler]", e);
+    setStatus("注入失败:" + String((e && e.message) || e).slice(0, 70));
   }
 };
 
