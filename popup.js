@@ -288,6 +288,36 @@ function parseCSV(text) {
   return rows;
 }
 
+// ---------- 表格行 → 资料套(CSV 与 xlsx 共用) ----------
+function rowsToProfiles(rows) {
+  if (rows.length < 2) throw new Error("表格至少要有表头和一行数据");
+  const headers = rows[0].map((h) => String(h).trim()).filter(Boolean);
+  if (!headers.length) throw new Error("表头为空");
+  const next = profiles.slice();
+  let count = 0;
+  for (const line of rows.slice(1)) {
+    const fields = headers.map((h, j) => {
+      // 内置参数按 KEY_LABEL 反查 key;自定义参数 key=label
+      const builtin = Object.entries(KEY_LABEL).find(([, label]) => label === h);
+      const key = builtin ? builtin[0] : h;
+      return { key, label: h, value: (line[j] == null ? "" : String(line[j])).trim() };
+    });
+    const p = { id: uid(), title: fields[0].value || `资料${next.length + 1}`, fields };
+    next.push(p);
+    count++;
+  }
+  profiles = next;
+  activeId = next[next.length - 1].id;
+  return count;
+}
+
+async function afterImport(count, label) {
+  await saveAll();
+  renderProfileSelect();
+  renderFields();
+  setStatus(`已从 ${label} 导入 ${count} 套资料 ✓`);
+}
+
 $("#import-csv-btn").onclick = () => $("#import-csv").click();
 $("#import-csv").onchange = async (e) => {
   const file = e.target.files[0];
@@ -295,30 +325,23 @@ $("#import-csv").onchange = async (e) => {
   if (!file) return;
   try {
     const rows = parseCSV(new TextDecoder("utf-8").decode(await file.arrayBuffer()));
-    if (rows.length < 2) throw new Error("CSV 至少要有表头和一行数据");
-    const headers = rows[0].map((h) => h.trim()).filter(Boolean);
-    if (!headers.length) throw new Error("表头为空");
-    const added = [];
-    const next = profiles.slice();
-    for (const line of rows.slice(1)) {
-      const fields = headers.map((h, j) => {
-        // 内置参数按 KEY_LABEL 反查 key;自定义参数 key=label
-        const builtin = Object.entries(KEY_LABEL).find(([, label]) => label === h);
-        const key = builtin ? builtin[0] : h;
-        return { key, label: h, value: (line[j] || "").trim() };
-      });
-      const p = { id: uid(), title: fields[0].value || `资料${next.length + 1}`, fields };
-      next.push(p);
-      added.push(p.title);
-    }
-    profiles = next;
-    activeId = next[next.length - 1].id;
-    await saveAll();
-    renderProfileSelect();
-    renderFields();
-    setStatus(`已从 CSV 导入 ${added.length} 套资料 ✓`);
+    await afterImport(rowsToProfiles(rows), "CSV");
   } catch (err) {
     setStatus("CSV 导入失败:" + err.message);
+  }
+};
+
+// ---------- Excel .xlsx 导入 ----------
+$("#import-xlsx-btn").onclick = () => $("#import-xlsx").click();
+$("#import-xlsx").onchange = async (e) => {
+  const file = e.target.files[0];
+  e.target.value = "";
+  if (!file) return;
+  try {
+    const rows = await parseXLSX(await file.arrayBuffer());
+    await afterImport(rowsToProfiles(rows), "Excel");
+  } catch (err) {
+    setStatus("Excel 导入失败:" + err.message);
   }
 };
 
@@ -377,6 +400,52 @@ $("#clear-maps").onclick = async () => {
   loadMappings();
 };
 
+// ---------- 填充历史 / 撤销 ----------
+function fmtTime(ts) {
+  const d = new Date(ts);
+  const p = (n) => String(n).padStart(2, "0");
+  return `${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+async function loadHistory() {
+  const { history = [] } = await chrome.storage.local.get("history");
+  const list = $("#history-list");
+  if (!history.length) {
+    list.innerHTML = '<div class="empty">暂无填充记录</div>';
+    return;
+  }
+  list.innerHTML = "";
+  history.slice(0, 10).forEach((h) => {
+    const div = document.createElement("div");
+    div.className = "map";
+    div.innerHTML = `
+      <div class="host">${esc(fmtTime(h.time))} · ${esc(h.host)}</div>
+      <div class="val">${esc(h.title || "")} · 改动 ${h.changes.length} 处</div>`;
+    list.appendChild(div);
+  });
+}
+
+$("#undo").onclick = async () => {
+  try {
+    let [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab || !tab.id) {
+      [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+    }
+    if (!tab || !tab.id) return setStatus("无法获取当前标签页");
+    if (!/^https?:/i.test(tab.url || "")) return setStatus("浏览器内部页面无法操作");
+    await chrome.tabs.sendMessage(tab.id, { action: "undo" });
+    setStatus("已发送撤销命令,看页面提示");
+    loadHistory();
+  } catch (e) {
+    setStatus("撤销失败:页面里没有脚本,请刷新页面");
+  }
+};
+
+$("#clear-history").onclick = async () => {
+  await chrome.storage.local.set({ history: [] });
+  loadHistory();
+};
+
 function esc(s) {
   return String(s)
     .replace(/&/g, "&amp;")
@@ -388,3 +457,4 @@ function esc(s) {
 loadAll();
 loadMappings();
 loadAuto();
+loadHistory();

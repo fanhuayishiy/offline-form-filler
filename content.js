@@ -233,6 +233,7 @@ function doFill(opts = {}) {
     let filled = 0;
     let skipped = 0;
     const handled = new Set();
+    changes.length = 0; // 本次会话的改动记录
 
     // 1) 手动映射优先:绑定资料参数的取当前套最新值;固定值的按选择器精确填
     for (const m of mappings) {
@@ -248,7 +249,9 @@ function doFill(opts = {}) {
       nodes.forEach((el) => {
         handled.add(el);
         if (el.value === value) return; // 已是目标值,不重复填
+        const before = el.value;
         if (setNativeValue(el, value)) {
+          recordChange(el, before, value);
           filled++;
           flash(el);
         }
@@ -270,7 +273,9 @@ function doFill(opts = {}) {
         if (v !== "") { value = v; break; } // 取第一个有值的候选
       }
       if (value !== "") {
+        const before = el.value;
         if (setNativeValue(el, value)) {
+          recordChange(el, before, value);
           filled++;
           flash(el);
         }
@@ -284,8 +289,32 @@ function doFill(opts = {}) {
       toast(`已填充 ${filled} 个字段${skipped ? `,${skipped} 个跳过(已填写/未识别)` : ""}`);
     }
 
+    // 记录本次改动(用于撤销):映射和字典填充统一记原值
+    if (changes.length) {
+      guard(() =>
+        chrome.storage.local.get("history").then(({ history = [] }) => {
+          history.unshift({
+            time: Date.now(),
+            host: location.hostname,
+            title: document.title.slice(0, 40),
+            changes: changes.slice(0, 100), // 单次上限,防止异常页面爆记录
+          });
+          return chrome.storage.local.set({ history: history.slice(0, 50) });
+        })
+      );
+    }
+
     fillCheckable(dict, handled);
   });
+}
+
+// ---------- 填充历史(撤销) ----------
+// 每次填充前收集 { el 引用信息, selector, before, after };撤销时按 selector 回滚。
+const changes = [];
+
+function recordChange(el, before, after) {
+  if (before === after) return;
+  changes.push({ selector: cssPath(el), before, after });
 }
 
 // ---------- 勾选框/单选组 ----------
@@ -303,7 +332,9 @@ function falsy(v) {
 
 function setCheck(el, want) {
   if (el.checked === want) return false; // 已是目标状态,不动
+  const before = el.checked;
   el.click(); // 走原生点击,让页面框架(React/Vue)收到完整交互事件
+  recordChange(el, String(before), String(el.checked));
   return true;
 }
 
@@ -519,7 +550,37 @@ chrome.storage.onChanged.addListener((changes, area) => {
 chrome.runtime.onMessage.addListener((msg) => {
   if (msg.action === "fill") doFill();
   if (msg.action === "capture") captureField();
+  if (msg.action === "undo") undoFill();
 });
+
+// 撤销最近一次填充:按记录的 selector 找回元素,把原值写回
+function undoFill() {
+  guard(async () => {
+    const { history = [] } = await chrome.storage.local.get("history");
+    const last = history[0];
+    if (!last) return toast("没有可撤销的填充记录");
+    let n = 0;
+    for (const c of last.changes) {
+      let els = [];
+      try {
+        els = document.querySelectorAll(c.selector);
+      } catch (e) {
+        continue;
+      }
+      els.forEach((el) => {
+        if (el.type === "checkbox" || el.type === "radio") {
+          if (String(el.checked) !== c.before && setCheck(el, c.before === "true")) n++;
+        } else if (el.value !== c.before) {
+          const v = c.before;
+          if (setNativeValue(el, v)) n++;
+        }
+      });
+    }
+    history.shift();
+    await chrome.storage.local.set({ history });
+    toast(n ? `已撤销 ${n} 处修改` : "页面元素已变化,未能撤销(刷新后无法回滚)");
+  });
+}
 
 // 补注入路径的备用触发通道:注入脚本后直接派发 DOM 事件,不依赖消息端口
 window.addEventListener("ff-fill", () => doFill());

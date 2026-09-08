@@ -28,14 +28,15 @@
 - 🔍 **自动识别字段**:扫描 `input / textarea / select`,按 `name`/`id`/`placeholder`/`aria-label`/`label` 等线索与内置别名字典匹配(**中/英/日**),支持 React/Vue 受控组件(原生 setter + 事件派发,不会出现"填了又消失");
 - ✅ **勾选框/单选组**:参数值写布尔语义("是/否"、true/false)即可自动勾选;单选组按选项文本匹配;
 - 🗂 **多套资料**:如"本人 / 家长 / 工作",一键切换,填充实时使用当前套,切套即重扫;
-- 📊 **CSV 批量导入**:一行一套资料,批量建套(支持引号转义);
+- 📊 **CSV / Excel 导入**:一行一套资料批量建套,支持 .xlsx 直接解析(纯本机解压,不联网);
+- ↩ **填充历史与撤销**:记录最近 50 次填充改动,一键把页面字段回滚到填充前;
 - ➕ **自定义参数**:参数名即识别词——添加"家长姓名"后,页面出现该字样即可命中;
 - 🎯 **手动映射兜底**:识别不了的字段右键「设置此字段」,可**绑定资料参数**(跟随资料/资料套自动变化)或存固定值;
 - ⚡ **自动填充开关 + 网站白名单**:开启后页面加载、SPA 动态表单自动扫描;可限定只在白名单网站自动填充(选项页配置);**已有值的字段一律跳过**,绝不覆盖;
 - ⚙️ **选项页**:白名单管理、数据备份;
 - 💾 **数据导出/导入**:一个 JSON 文件带走全部资料套、映射与设置,换浏览器/电脑无缝迁移;
 - 🦊 **Firefox 支持**:内置构建脚本 `npm run build:firefox`;
-- 🧪 **可测试**:填充引擎带 20 项断言(jsdom)。
+- 🧪 **可测试**:填充引擎带 25 项断言(jsdom)。
 
 ## 安装
 
@@ -85,19 +86,20 @@ A:分两种:`chrome://` 设置页、新标签页、应用商店等浏览器内�
 manifest.json       扩展清单(MV3,无网络权限)
 content.js          注入页面的识别+填充引擎(核心)
 background.js       service worker:右键菜单注册与命令转发
-popup.html/js       管理界面:资料套、参数、映射、开关、导入导出
+popup.html/js       管理界面:资料套、参数、映射、开关、导入导出、历史撤销
 options.html/js     选项页:自动填充白名单、数据备份
+xlsx.js             .xlsx 解析器(依赖 vendor/fflate.js,纯本机)
 build-firefox.mjs   Firefox 版构建脚本(生成 firefox/ 目录)
 test.js             jsdom 断言测试(与扩展共用同一份 content.js)
 ```
 
 ## 开发
 
-环境:Node.js 18+。扩展本体零依赖,`jsdom` 仅用于测试。
+环境:Node.js 18+。扩展运行时零网络依赖(`vendor/fflate.js` 已随仓库分发,仅用于 xlsx 解压)。
 
 ```bash
-npm install           # 安装测试依赖
-npm test              # 20 项断言
+npm install           # 安装测试依赖(jsdom、fflate)
+npm test              # 25 项断言
 npm run build:firefox # 构建 Firefox 版到 firefox/
 ```
 
@@ -118,13 +120,12 @@ npm run build:firefox # 构建 Firefox 版到 firefox/
 ## 路线图(Roadmap)
 
 - [x] 按网站启用开关(白名单)· v0.2.0
-- [x] Excel / CSV 批量导入资料 · v0.2.0
+- [x] Excel / CSV 批量导入资料 · v0.3.0(.xlsx 直接解析)
 - [x] 选项页(Options Page)管理设置 · v0.2.0
 - [x] Firefox 兼容适配(构建脚本)· v0.2.0
 - [x] 更多字段类型支持(勾选框、单选组)· v0.2.0
 - [x] 中英日多语言字典 · v0.2.0
-- [ ] Excel(.xlsx)直接导入
-- [ ] 填充历史与撤销
+- [x] 填充历史与撤销 · v0.3.0
 
 ## 免责声明
 

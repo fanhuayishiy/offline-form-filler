@@ -80,6 +80,10 @@
     <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
     手动映射
   </button>
+  <button data-tab="history">
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+    填充历史
+  </button>
 </div>
 
 <div class="page">
@@ -119,6 +123,8 @@
       <input type="file" id="import-file" accept=".json,application/json" style="display:none">
       <input type="file" id="import-csv" accept=".csv,text/csv" style="display:none">
       <button id="import-csv-btn" class="btn ghost mini">⬆ 导入 CSV</button>
+      <input type="file" id="import-xlsx" accept=".xlsx" style="display:none">
+      <button id="import-xlsx-btn" class="btn ghost mini">⬆ 导入 Excel</button>
       <button id="open-options" class="btn ghost mini" title="白名单等高级设置">⚙ 设置</button>
     </div>
     <div class="muted" style="font-size:12px;margin-top:6px">换浏览器/电脑时带走资料与映射;CSV 可批量建资料套</div>
@@ -134,8 +140,19 @@
 
     <div class="hint">映射 = 在某个网站上,把指定字段绑定到资料参数(跟随资料)或填固定值。在目标输入框上右键「设置此字段」即可添加。</div>
   </section>
+  <!-- ================= 填充历史 ================= -->
+  <section id="tab-history">
+    <div id="history-list"></div>
+    <div class="actions">
+      <button id="undo" class="btn primary">↩ 撤销最近一次填充</button>
+      <button id="clear-history" class="btn danger">清空历史</button>
+    </div>
+    <div class="hint">记录最近 50 次填充的改动;「撤销」会把当前页面里对应字段写回填充前的值(页面刷新后无法回滚)。</div>
+  </section>
 </div>
 
+<script src="vendor/fflate.js"></script>
+<script src="xlsx.js"></script>
 <script src="popup.js"></script>
 </body>
 </html>

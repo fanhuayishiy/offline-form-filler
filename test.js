@@ -78,16 +78,23 @@ const mappings = [
   { selector: "#f-bound", key: "company", host: "example.com" },          // 绑定资料参数
 ];
 
-// ---- chrome.* 垫片 ----
+// ---- chrome.* 垫片(set 落库到 store,get 实时合成,支持 history 与测试中直接改变量) ----
+const store = {};
 global.chrome = {
   storage: {
     local: {
-      get: () => Promise.resolve({ profiles, activeProfileId, mappings }),
-      set: () => Promise.resolve(),
+      get: (keys) => {
+        const live = { profiles, activeProfileId, mappings, ...store };
+        const arr = keys == null ? Object.keys(live) : Array.isArray(keys) ? keys : [keys];
+        return Promise.resolve(
+          Object.fromEntries(arr.map((k) => [k, live[k]]).filter(([, v]) => v !== undefined))
+        );
+      },
+      set: (obj) => { Object.assign(store, obj); return Promise.resolve(); },
     },
     onChanged: { addListener: () => {} },
   },
-  runtime: { id: "test-extension", onMessage: { addListener: () => {} } },
+  runtime: { id: "test-extension", onMessage: { addListener: (fn) => (globalThis.__FF_MSG__ = fn) } },
 };
 
 // ---- 加载真实的 content.js ----
@@ -158,7 +165,49 @@ eval(FF_SOURCE);
     "CSV 解析支持引号转义"
   );
 
-  console.log("✅ 全部 20 项断言通过:字典识别、候选回退、自定义参数识别、下拉匹配、勾选框/单选组、React 受控组件、固定值映射、资料绑定映射、多套切换、已填写跳过、CSV 解析均生效");
+  // 填充历史与撤销:受控场景——清空历史,空字段重新填充,断言记录与回滚
+  await chrome.storage.local.set({ history: [] });
+  document.getElementById("f-name").value = "";
+  document.getElementById("f-weird").value = "";
+  await doFill({ auto: true });
+  await new Promise((r) => setTimeout(r, 20)); // 历史写入是异步小任务
+  let { history = [] } = await chrome.storage.local.get("history");
+  assert.ok(history.length === 1 && history[0].changes.length >= 2, "填充后记录了本次所有改动");
+
+  document.getElementById("f-name").value = "张三(用户又改过)"; // 撤销时应被写回空
+  globalThis.__FF_MSG__({ action: "undo" });
+  await new Promise((r) => setTimeout(r, 20));
+  assert.strictEqual(val("f-name"), "", "撤销把字段写回填充前的值");
+  assert.strictEqual(val("f-weird"), "", "映射填充的字段同样回滚");
+  const { history: after } = await chrome.storage.local.get("history");
+  assert.strictEqual(after.length, 0, "撤销后移除该条记录");
+
+  // xlsx 解析:用 fflate 现场压一个最小 xlsx,跑真实 parseXLSX
+  global.window = window; // parseXLSX 内部通过 window.fflate 取解压库
+  window.fflate = require("fflate");
+  const xlsxSrc = fs.readFileSync(__dirname + "/xlsx.js", "utf8");
+  const parseXLSX = new Function(xlsxSrc + "\nreturn parseXLSX;")();
+  const fflate = window.fflate;
+  const sheet =
+    '<?xml version="1.0"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
+    '<row r="1"><c r="A1" t="s"><v>0</v></c><c r="B1" t="s"><v>1</v></c><c r="C1" t="s"><v>2</v></c></row>' +
+    '<row r="2"><c r="A2" t="s"><v>3</v></c><c r="B2"><v>13800001111</v></c><c r="C2" t="inlineStr"><is><t>a@b.c</t></is></c></row>' +
+    "</worksheet>";
+  const shared =
+    '<?xml version="1.0"?><sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
+    "<si><t>姓名</t></si><si><t>手机</t></si><si><t>邮箱</t></si><si><t>李四</t></si></sst>";
+  const xlsxBytes = fflate.zipSync({
+    "xl/sharedStrings.xml": fflate.strToU8(shared),
+    "xl/worksheets/sheet1.xml": fflate.strToU8(sheet),
+  });
+  const xlsxRows = await parseXLSX(xlsxBytes.buffer.slice(xlsxBytes.byteOffset, xlsxBytes.byteOffset + xlsxBytes.byteLength));
+  assert.deepStrictEqual(
+    xlsxRows,
+    [["姓名", "手机", "邮箱"], ["李四", "13800001111", "a@b.c"]],
+    "xlsx 解析:共享字符串/数字/内联字符串"
+  );
+
+  console.log("✅ 全部 25 项断言通过:字典识别、候选回退、自定义参数识别、下拉匹配、勾选框/单选组、React 受控组件、固定值映射、资料绑定映射、多套切换、已填写跳过、CSV 解析、填充历史与撤销、xlsx 解析均生效");
 })().catch((e) => {
   console.error("❌", e.message);
   process.exit(1);
