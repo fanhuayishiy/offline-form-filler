@@ -65,6 +65,29 @@ function fieldValue(key) {
   return f == null ? "" : String(f.value == null ? "" : f.value);
 }
 
+// ---------- 扩展上下文失效保护 ----------
+// 扩展更新/重载(↻)后,已打开页面里驻留的旧脚本会失去 chrome.* 访问权,
+// 调用会抛 "Extension context invalidated"。统一兜底:提示一次,然后休眠。
+let ctxDead = false;
+function isCtxError(e) {
+  return String((e && e.message) || e).includes("Extension context invalidated");
+}
+function guard(fn) {
+  if (ctxDead) return Promise.resolve();
+  return Promise.resolve()
+    .then(fn)
+    .catch((e) => {
+      if (isCtxError(e)) {
+        ctxDead = true;
+        try {
+          toast("表单秒填已更新,请刷新本页一次");
+        } catch (_) {}
+        return;
+      }
+      console.error("[form-filler]", e);
+    });
+}
+
 // 动态字典 = 内置别名 + 当前资料套里每个参数的名称
 // 这样你自定义的"家长姓名""车牌号"等参数,也能被自动识别命中
 function buildDict() {
@@ -178,65 +201,67 @@ function cssPath(el) {
 }
 
 // ---------- 填充主流程 ----------
-async function doFill(opts = {}) {
+function doFill(opts = {}) {
   const auto = !!opts.auto;
-  await loadProfiles();
-  const { mappings = [] } = await chrome.storage.local.get("mappings");
-  const dict = buildDict();
+  return guard(async () => {
+    await loadProfiles();
+    const { mappings = [] } = await chrome.storage.local.get("mappings");
+    const dict = buildDict();
 
-  let filled = 0;
-  let skipped = 0;
-  const handled = new Set();
+    let filled = 0;
+    let skipped = 0;
+    const handled = new Set();
 
-  // 1) 手动映射优先:绑定资料参数的取当前套最新值;固定值的按选择器精确填
-  for (const m of mappings) {
-    if (m.host && !location.hostname.endsWith(m.host)) continue;
-    const value = m.key ? fieldValue(m.key) : m.value;
-    if (value == null || value === "") continue; // 当前资料套没有该参数或还没填,跳过
-    let nodes = [];
-    try {
-      nodes = document.querySelectorAll(m.selector);
-    } catch (e) {
-      continue;
-    }
-    nodes.forEach((el) => {
-      handled.add(el);
-      if (el.value === value) return; // 已是目标值,不重复填
-      if (setNativeValue(el, value)) {
-        filled++;
-        flash(el);
+    // 1) 手动映射优先:绑定资料参数的取当前套最新值;固定值的按选择器精确填
+    for (const m of mappings) {
+      if (m.host && !location.hostname.endsWith(m.host)) continue;
+      const value = m.key ? fieldValue(m.key) : m.value;
+      if (value == null || value === "") continue; // 当前资料套没有该参数或还没填,跳过
+      let nodes = [];
+      try {
+        nodes = document.querySelectorAll(m.selector);
+      } catch (e) {
+        continue;
       }
-    });
-  }
+      nodes.forEach((el) => {
+        handled.add(el);
+        if (el.value === value) return; // 已是目标值,不重复填
+        if (setNativeValue(el, value)) {
+          filled++;
+          flash(el);
+        }
+      });
+    }
 
-  // 2) 字典自动识别(含自定义参数名):只填空字段;已有值的一律跳过,正在输入的也不动
-  for (const el of getFields()) {
-    if (handled.has(el)) continue;
-    if (el.value) {
-      skipped++;
-      continue;
-    }
-    if (el === document.activeElement) continue;
-    const candidates = matchKeys(clueOf(el), dict);
-    let value = "";
-    for (const key of candidates) {
-      const v = fieldValue(key);
-      if (v !== "") { value = v; break; } // 取第一个有值的候选
-    }
-    if (value !== "") {
-      if (setNativeValue(el, value)) {
-        filled++;
-        flash(el);
+    // 2) 字典自动识别(含自定义参数名):只填空字段;已有值的一律跳过,正在输入的也不动
+    for (const el of getFields()) {
+      if (handled.has(el)) continue;
+      if (el.value) {
+        skipped++;
+        continue;
       }
-    } else {
-      skipped++;
+      if (el === document.activeElement) continue;
+      const candidates = matchKeys(clueOf(el), dict);
+      let value = "";
+      for (const key of candidates) {
+        const v = fieldValue(key);
+        if (v !== "") { value = v; break; } // 取第一个有值的候选
+      }
+      if (value !== "") {
+        if (setNativeValue(el, value)) {
+          filled++;
+          flash(el);
+        }
+      } else {
+        skipped++;
+      }
     }
-  }
 
-  // 自动模式下没填到东西就不打扰,手动触发始终给反馈
-  if (filled || !auto) {
-    toast(`已填充 ${filled} 个字段${skipped ? `,${skipped} 个跳过(已填写/未识别)` : ""}`);
-  }
+    // 自动模式下没填到东西就不打扰,手动触发始终给反馈
+    if (filled || !auto) {
+      toast(`已填充 ${filled} 个字段${skipped ? `,${skipped} 个跳过(已填写/未识别)` : ""}`);
+    }
+  });
 }
 
 // ---------- 手动设置字段(右键菜单触发) ----------
@@ -367,10 +392,12 @@ function scheduleAutoFill(delay = 800) {
 }
 
 (async () => {
-  await loadProfiles();
-  const { autofill = false } = await chrome.storage.local.get("autofill");
-  autoOn = !!autofill;
-  if (autoOn) doFill({ auto: true });
+  guard(async () => {
+    await loadProfiles();
+    const { autofill = false } = await chrome.storage.local.get("autofill");
+    autoOn = !!autofill;
+    if (autoOn) doFill({ auto: true });
+  });
 })();
 
 const domObserver = new MutationObserver((muts) => {
@@ -391,9 +418,11 @@ domObserver.observe(document.documentElement, { childList: true, subtree: true }
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== "local") return;
   if (changes.profiles || changes.activeProfileId || changes.profile) {
-    loadProfiles().then(() => {
-      if (autoOn) doFill({ auto: true }); // 自动模式下,切了资料套立刻按新套重扫
-    });
+    guard(() =>
+      loadProfiles().then(() => {
+        if (autoOn) doFill({ auto: true }); // 自动模式下,切了资料套立刻按新套重扫
+      })
+    );
   }
   if (changes.autofill) {
     autoOn = !!changes.autofill.newValue;
