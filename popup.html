@@ -52,6 +52,8 @@
   .muted { color: #8a93a5; white-space: nowrap; }
 
   .actions { display: flex; gap: 10px; margin-top: 14px; }
+  .btn-grid { margin-top: 12px; margin-bottom: 0; gap: 6px; }
+  .btn-grid .btn { flex: 1; min-width: 0; padding: 8px 4px; font-size: 12.5px; white-space: nowrap; text-align: center; }
   #status { margin-top: 10px; color: #2e7d32; min-height: 18px; font-size: 13px; }
   .hint { color: #8a93a5; font-size: 12.5px; line-height: 1.7; margin-top: 14px; }
 
@@ -117,17 +119,17 @@
     </div>
     <div id="status"></div>
 
-    <div class="row" style="margin-top:10px">
-      <button id="export" class="btn ghost mini">⬇ 导出数据</button>
-      <button id="import" class="btn ghost mini">⬆ 导入数据</button>
+    <div class="row btn-grid">
+      <button id="export" class="btn ghost" title="导出全部资料/映射/设置为 JSON">⬇ 导出</button>
+      <button id="import" class="btn ghost" title="从 JSON 备份恢复">⬆ 导入</button>
       <input type="file" id="import-file" accept=".json,application/json" style="display:none">
       <input type="file" id="import-csv" accept=".csv,text/csv" style="display:none">
-      <button id="import-csv-btn" class="btn ghost mini">⬆ 导入 CSV</button>
+      <button id="import-csv-btn" class="btn ghost" title="CSV:表头=参数名,一行一套">📋 CSV</button>
       <input type="file" id="import-xlsx" accept=".xlsx" style="display:none">
-      <button id="import-xlsx-btn" class="btn ghost mini">⬆ 导入 Excel</button>
-      <button id="open-options" class="btn ghost mini" title="白名单等高级设置">⚙ 设置</button>
+      <button id="import-xlsx-btn" class="btn ghost" title="Excel:表头=参数名,一行一套">📊 Excel</button>
+      <button id="open-options" class="btn ghost" title="白名单等高级设置">⚙ 设置</button>
     </div>
-    <div class="muted" style="font-size:12px;margin-top:6px">换浏览器/电脑时带走资料与映射;CSV 可批量建资料套</div>
+    <div class="muted" style="font-size:12px;margin-top:6px">备份带走资料 · CSV/Excel 批量建套 · 白名单等高级设置</div>
 
     <div class="hint">自定义参数名会参与自动识别:页面上出现"家长姓名"字样即可命中同名参数。识别不了的字段,右键「设置此字段」从下拉里绑定参数。</div>
   </section>
@@ -136,7 +138,7 @@
   <section id="tab-mappings">
     <div id="map-list"></div>
 
-    <div><button id="clear-maps" class="btn danger">清空全部映射</button></div>
+    <div class="actions"><button id="clear-maps" class="btn danger">清空全部映射</button></div>
 
     <div class="hint">映射 = 在某个网站上,把指定字段绑定到资料参数(跟随资料)或填固定值。在目标输入框上右键「设置此字段」即可添加。</div>
   </section>
