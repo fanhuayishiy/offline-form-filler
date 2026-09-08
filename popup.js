@@ -192,10 +192,25 @@ $("#fill").onclick = async () => {
     } catch (e) {
       // 页面是在扩展安装/刷新(↻)之前打开的,里面还没有脚本。
       // 点击弹窗已授予 activeTab 权限,这里现场补注入,无需手动刷新。
-      await chrome.scripting
-        .executeScript({ target: { tabId: tab.id, allFrames: true }, files: ["content.js"] })
-        .catch(() => {});
-      await chrome.tabs.sendMessage(tab.id, { action: "fill" });
+      // 注意:必须先只注入顶层 frame —— allFrames:true 要求对每个子 frame 都有
+      // host 权限,遇到跨域 iframe(在线客服等)会让整个调用失败。
+      let injErr = "";
+      try {
+        await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["content.js"] });
+      } catch (err) {
+        injErr = String((err && err.message) || err);
+        await chrome.scripting
+          .executeScript({ target: { tabId: tab.id, allFrames: true }, files: ["content.js"] })
+          .catch(() => {});
+      }
+      try {
+        await chrome.tabs.sendMessage(tab.id, { action: "fill" });
+      } catch (err) {
+        console.error("[form-filler] 注入失败:", injErr || err);
+        return setStatus(
+          "注入失败" + (injErr ? `:${injErr.slice(0, 60)}` : "") + ",请刷新页面后重试"
+        );
+      }
     }
     setStatus(`已填充:${(tab.title || tab.url).slice(0, 24)}`);
   } catch (e) {
