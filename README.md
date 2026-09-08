@@ -7,6 +7,7 @@
 适合需要反复填写固定信息的场景:电商/ERP 后台、报名系统、报销单、招聘网站等。
 
 ![License](https://img.shields.io/badge/License-MIT-blue.svg)
+![Release](https://img.shields.io/github/v/release/fanhuayishiy/offline-form-filler?color=blue&label=release)
 ![Chrome](https://img.shields.io/badge/Chromium-MV3-4a7dff.svg)
 ![Test](https://img.shields.io/badge/tests-16%20passed-2e7d32.svg)
 
@@ -36,9 +37,9 @@
 
 适用于所有 Chromium 内核浏览器(Chrome、Edge、Brave、Opera、Vivaldi、360、QQ 等),系统不限(Windows / macOS / Linux,随浏览器):
 
-1. 下载本仓库( Releases 页源码 zip 或 `git clone`);
+1. 下载 **[最新 Release](https://github.com/fanhuayishiy/offline-form-filler/releases/latest)** 中的 `Source code (zip)` 并解压(或 `git clone` 本仓库);
 2. 打开扩展页(`chrome://extensions`、`edge://extensions`…),开启「开发者模式」;
-3. 「加载已解压的扩展程序」→ 选择 `form-filler` 文件夹;
+3. 「加载已解压的扩展程序」→ 选择解压得到的文件夹(如 `offline-form-filler-0.1.0`,它就是扩展本体);
 4. 更新代码后,在扩展页点该扩展的「刷新(↻)」并刷新已打开的网页。
 
 > Firefox 暂不支持(MV3 service worker 兼容性 + 未签名扩展无法永久安装),移动端浏览器不支持加载解压扩展,欢迎 PR/Issue 讨论。
