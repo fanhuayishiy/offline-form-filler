@@ -174,18 +174,32 @@ function setStatus(text) {
   setTimeout(() => ($("#status").textContent = ""), 2500);
 }
 
-// 本窗口是独立窗口,要填的是"普通浏览器窗口"里的活动标签页
+// 本窗口是独立弹窗,要填的是"普通浏览器窗口"里的活动标签页
 $("#fill").onclick = async () => {
   try {
     const wins = await chrome.windows.query({ normal: true });
     const win = wins.find((w) => w.focused) || wins[0];
-    if (!win) return setStatus("没有打开的浏览器窗口");
+    if (!win) return setStatus("无法获取当前标签页");
     const [tab] = await chrome.tabs.query({ active: true, windowId: win.id });
     if (!tab || !tab.id) return setStatus("当前窗口没有活动标签页");
-    await chrome.tabs.sendMessage(tab.id, { action: "fill" });
-    setStatus(`已填充:${tab.title.slice(0, 24) || tab.url}`);
+
+    // 浏览器内部页面(chrome:// 设置页、新标签页、商店等)禁止注入,提前给出明确提示
+    if (!/^https?:/i.test(tab.url || "")) {
+      return setStatus("浏览器内部页面无法注入,请切换到普通网页");
+    }
+    try {
+      await chrome.tabs.sendMessage(tab.id, { action: "fill" });
+    } catch (e) {
+      // 页面是在扩展安装/刷新(↻)之前打开的,里面还没有脚本。
+      // 点击弹窗已授予 activeTab 权限,这里现场补注入,无需手动刷新。
+      await chrome.scripting
+        .executeScript({ target: { tabId: tab.id, allFrames: true }, files: ["content.js"] })
+        .catch(() => {});
+      await chrome.tabs.sendMessage(tab.id, { action: "fill" });
+    }
+    setStatus(`已填充:${(tab.title || tab.url).slice(0, 24)}`);
   } catch (e) {
-    setStatus("此页面不支持(刷新后再试)");
+    setStatus("注入失败,请刷新页面后重试");
   }
 };
 

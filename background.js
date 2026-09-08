@@ -16,10 +16,17 @@ chrome.runtime.onInstalled.addListener(() => {
   });
 });
 
-chrome.contextMenus.onClicked.addListener((info, tab) => {
+chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   if (!tab || tab.id == null) return;
   const action = info.menuItemId === "ff-capture" ? "capture" : "fill";
-  chrome.tabs.sendMessage(tab.id, { action }).catch(() => {
-    // 页面没有 content script(如 chrome:// 页),忽略
-  });
+  try {
+    await chrome.tabs.sendMessage(tab.id, { action });
+  } catch (e) {
+    // 页面在扩展安装/刷新前打开,没有脚本:右键菜单点击已授予 activeTab,现场补注入
+    if (!/^https?:/i.test(tab.url || "")) return; // 内部页面无法注入
+    await chrome.scripting
+      .executeScript({ target: { tabId: tab.id, allFrames: true }, files: ["content.js"] })
+      .catch(() => {});
+    await chrome.tabs.sendMessage(tab.id, { action }).catch(() => {});
+  }
 });
