@@ -248,7 +248,9 @@ $("#import-file").onchange = async (e) => {
       throw new Error("不是本扩展导出的文件");
     }
     const patch = {};
-    for (const k of DATA_KEYS) if (obj[k] !== undefined) patch[k] = obj[k];
+    for (const k of ["profiles", "activeProfileId", "mappings", "autofill", "siteWhitelist", "wlMode"]) {
+      if (obj[k] !== undefined) patch[k] = obj[k];
+    }
     await chrome.storage.local.set(patch);
     await loadAll();
     await loadMappings();
@@ -257,6 +259,72 @@ $("#import-file").onchange = async (e) => {
   } catch (err) {
     setStatus("导入失败:" + err.message);
   }
+};
+
+// ---------- CSV 批量导入资料套 ----------
+// 格式:首行为表头(列名=参数名,内置参数可用中文名如"姓名"),每行=一套资料。
+// 例:姓名,手机,邮箱,公司 / 张三,138...,a@b.c,某公司
+function parseCSV(text) {
+  const rows = [];
+  let row = [], cell = "", inQuote = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuote) {
+      if (c === '"') {
+        if (text[i + 1] === '"') { cell += '"'; i++; }
+        else inQuote = false;
+      } else cell += c;
+    } else if (c === '"') inQuote = true;
+    else if (c === ",") { row.push(cell); cell = ""; }
+    else if (c === "\n" || c === "\r") {
+      if (c === "\r" && text[i + 1] === "\n") i++;
+      row.push(cell); cell = "";
+      if (row.some((x) => x !== "")) rows.push(row);
+      row = [];
+    } else cell += c;
+  }
+  row.push(cell);
+  if (row.some((x) => x !== "")) rows.push(row);
+  return rows;
+}
+
+$("#import-csv-btn").onclick = () => $("#import-csv").click();
+$("#import-csv").onchange = async (e) => {
+  const file = e.target.files[0];
+  e.target.value = "";
+  if (!file) return;
+  try {
+    const rows = parseCSV(new TextDecoder("utf-8").decode(await file.arrayBuffer()));
+    if (rows.length < 2) throw new Error("CSV 至少要有表头和一行数据");
+    const headers = rows[0].map((h) => h.trim()).filter(Boolean);
+    if (!headers.length) throw new Error("表头为空");
+    const added = [];
+    const next = profiles.slice();
+    for (const line of rows.slice(1)) {
+      const fields = headers.map((h, j) => {
+        // 内置参数按 KEY_LABEL 反查 key;自定义参数 key=label
+        const builtin = Object.entries(KEY_LABEL).find(([, label]) => label === h);
+        const key = builtin ? builtin[0] : h;
+        return { key, label: h, value: (line[j] || "").trim() };
+      });
+      const p = { id: uid(), title: fields[0].value || `资料${next.length + 1}`, fields };
+      next.push(p);
+      added.push(p.title);
+    }
+    profiles = next;
+    activeId = next[next.length - 1].id;
+    await saveAll();
+    renderProfileSelect();
+    renderFields();
+    setStatus(`已从 CSV 导入 ${added.length} 套资料 ✓`);
+  } catch (err) {
+    setStatus("CSV 导入失败:" + err.message);
+  }
+};
+
+// ---------- 高级设置 ----------
+$("#open-options").onclick = () => {
+  chrome.runtime.openOptionsPage();
 };
 
 // ---------- 自动填充开关 ----------

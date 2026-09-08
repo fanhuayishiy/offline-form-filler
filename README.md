@@ -25,13 +25,17 @@
 
 ## 特性
 
-- 🔍 **自动识别字段**:扫描 `input / textarea / select`,按 `name`/`id`/`placeholder`/`aria-label`/`label` 等线索与内置别名字典匹配(中英文),支持 React/Vue 受控组件(原生 setter + 事件派发,不会出现"填了又消失");
+- 🔍 **自动识别字段**:扫描 `input / textarea / select`,按 `name`/`id`/`placeholder`/`aria-label`/`label` 等线索与内置别名字典匹配(**中/英/日**),支持 React/Vue 受控组件(原生 setter + 事件派发,不会出现"填了又消失");
+- ✅ **勾选框/单选组**:参数值写布尔语义("是/否"、true/false)即可自动勾选;单选组按选项文本匹配;
 - 🗂 **多套资料**:如"本人 / 家长 / 工作",一键切换,填充实时使用当前套,切套即重扫;
+- 📊 **CSV 批量导入**:一行一套资料,批量建套(支持引号转义);
 - ➕ **自定义参数**:参数名即识别词——添加"家长姓名"后,页面出现该字样即可命中;
 - 🎯 **手动映射兜底**:识别不了的字段右键「设置此字段」,可**绑定资料参数**(跟随资料/资料套自动变化)或存固定值;
-- ⚡ **自动填充开关**:开启后页面加载、SPA 动态表单自动扫描;**已有值的字段一律跳过**,绝不覆盖;
+- ⚡ **自动填充开关 + 网站白名单**:开启后页面加载、SPA 动态表单自动扫描;可限定只在白名单网站自动填充(选项页配置);**已有值的字段一律跳过**,绝不覆盖;
+- ⚙️ **选项页**:白名单管理、数据备份;
 - 💾 **数据导出/导入**:一个 JSON 文件带走全部资料套、映射与设置,换浏览器/电脑无缝迁移;
-- 🧪 **可测试**:填充引擎带 16 项断言(jsdom),覆盖字典识别、候选回退、React 受控、映射绑定、多套切换、已填写跳过。
+- 🦊 **Firefox 支持**:内置构建脚本 `npm run build:firefox`;
+- 🧪 **可测试**:填充引擎带 20 项断言(jsdom)。
 
 ## 安装
 
@@ -42,7 +46,7 @@
 3. 「加载已解压的扩展程序」→ 选择解压得到的文件夹(如 `offline-form-filler-0.1.0`,它就是扩展本体);
 4. 更新代码后,在扩展页点该扩展的「刷新(↻)」并刷新已打开的网页。
 
-> Firefox 暂不支持(MV3 service worker 兼容性 + 未签名扩展无法永久安装),移动端浏览器不支持加载解压扩展,欢迎 PR/Issue 讨论。
+> Firefox:运行 `npm run build:firefox`,加载生成的 `firefox/` 目录(未签名扩展只能临时加载,重启后需重装;永久安装需在 addons.mozilla.org 签名)。移动端浏览器不支持加载解压扩展。
 
 ## 使用
 
@@ -78,11 +82,13 @@ A:分两种:`chrome://` 设置页、新标签页、应用商店等浏览器内�
 ## 项目结构
 
 ```
-manifest.json    扩展清单(MV3,无网络权限)
-content.js       注入页面的识别+填充引擎(核心)
-background.js    service worker:右键菜单注册与命令转发
-popup.html/js    管理界面:资料套、参数、映射、开关、导入导出
-test.js          jsdom 断言测试(与扩展共用同一份 content.js)
+manifest.json       扩展清单(MV3,无网络权限)
+content.js          注入页面的识别+填充引擎(核心)
+background.js       service worker:右键菜单注册与命令转发
+popup.html/js       管理界面:资料套、参数、映射、开关、导入导出
+options.html/js     选项页:自动填充白名单、数据备份
+build-firefox.mjs   Firefox 版构建脚本(生成 firefox/ 目录)
+test.js             jsdom 断言测试(与扩展共用同一份 content.js)
 ```
 
 ## 开发
@@ -90,8 +96,9 @@ test.js          jsdom 断言测试(与扩展共用同一份 content.js)
 环境:Node.js 18+。扩展本体零依赖,`jsdom` 仅用于测试。
 
 ```bash
-npm install   # 安装测试依赖
-npm test      # 16 项断言
+npm install           # 安装测试依赖
+npm test              # 20 项断言
+npm run build:firefox # 构建 Firefox 版到 firefox/
 ```
 
 - 改识别词:编辑 `content.js` 顶部 `DICT`(中英文别名);
@@ -110,12 +117,14 @@ npm test      # 16 项断言
 
 ## 路线图(Roadmap)
 
-- [ ] 按网站启用开关(白名单)
-- [ ] Excel / CSV 批量导入资料
-- [ ] 选项页(Options Page)管理资料
-- [ ] Firefox 兼容适配
-- [ ] 更多字段类型支持(勾选组、上传、富文本)
-- [ ] 中英日多语言字典
+- [x] 按网站启用开关(白名单)· v0.2.0
+- [x] Excel / CSV 批量导入资料 · v0.2.0
+- [x] 选项页(Options Page)管理设置 · v0.2.0
+- [x] Firefox 兼容适配(构建脚本)· v0.2.0
+- [x] 更多字段类型支持(勾选框、单选组)· v0.2.0
+- [x] 中英日多语言字典 · v0.2.0
+- [ ] Excel(.xlsx)直接导入
+- [ ] 填充历史与撤销
 
 ## 免责声明
 

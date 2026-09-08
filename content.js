@@ -7,31 +7,32 @@
 //   activeProfileId: "..."                                          // 当前使用哪套
 //   mappings: [ { selector, host, key?, value? } ]                  // 手动映射:key=绑定资料参数,value=固定值
 //   autofill: true/false                                            // 自动填充开关
+//   siteWhitelist: ["example.com", ...]                             // 自动填充白名单(空=全部网站)
 //
 // 整个文件包在 IIFE 里:补注入时页面里可能已驻留旧版脚本(重载扩展前打开的页面),
 // 顶层 const 重名会让注入直接失败;闭包隔离后重复注入互不影响。
 
 (() => {
-// ---------- 内置字段别名字典(可自行增删) ----------
+// ---------- 内置字段别名字典(中/英/日,可自行增删) ----------
 const DICT = {
-  name:     ["姓名", "真实姓名", "名字", "联系人", "收件人", "name", "fullname", "full_name", "realname", "real_name", "contact"],
-  phone:    ["手机号", "手机", "联系电话", "电话", "联系方式", "tel", "phone", "mobile", "telephone"],
-  email:    ["邮箱", "电子邮件", "邮件地址", "email", "e-mail", "mail"],
+  name:     ["姓名", "真实姓名", "名字", "联系人", "收件人", "name", "fullname", "full_name", "realname", "real_name", "contact", "氏名", "お名前", "名前"],
+  phone:    ["手机号", "手机", "联系电话", "电话", "联系方式", "tel", "phone", "mobile", "telephone", "電話番号", "携帯", "けいたいでんわ"],
+  email:    ["邮箱", "电子邮件", "邮件地址", "email", "e-mail", "mail", "邮箱地址", "メールアドレス", "Ｅメール"],
   idcard:   ["身份证", "证件号码", "证件号", "身份证号", "idcard", "id_card", "idno", "identity", "ssn"],
-  company:  ["公司名称", "企业名称", "单位", "公司", "单位全称", "company", "corp", "organization", "org"],
-  province: ["省份", "所在省", "省", "province", "state"],
-  city:     ["城市", "所在市", "市", "city"],
+  company:  ["公司名称", "企业名称", "单位", "公司", "单位全称", "company", "corp", "organization", "org", "会社名", "企業名", "社名"],
+  province: ["省份", "所在省", "省", "province", "state", "都道府県"],
+  city:     ["城市", "所在市", "市", "city", "市区町村"],
   district: ["区县", "区/县", "地区", "district", "county", "area"],
-  address:  ["详细地址", "通讯地址", "收货地址", "住址", "地址", "address", "addr"],
-  zip:      ["邮政编码", "邮编", "zip", "postcode", "postal"],
-  gender:   ["性别", "gender", "sex"],
-  birthday: ["出生日期", "出生年月", "生日", "birthday", "birth_date", "birthdate", "dob"],
+  address:  ["详细地址", "通讯地址", "收货地址", "住址", "地址", "address", "addr", "住所", "ご住所"],
+  zip:      ["邮政编码", "邮编", "zip", "postcode", "postal", "郵便番号", " postal_code"],
+  gender:   ["性别", "gender", "sex", "性別"],
+  birthday: ["出生日期", "出生年月", "生日", "birthday", "birth_date", "birthdate", "dob", "生年月日"],
   qq:       ["qq号", "qq"],
   wechat:   ["微信号", "微信", "wechat", "wxid"],
   bankcard: ["银行卡号", "银行卡", "卡号", "bankcard", "bank_card", "cardno", "card_no"],
-  department: ["部门", "所在部门", "科室", "department", "dept"],
-  position:   ["职位", "职务", "岗位", "position", "title", "job"],
-  remark:   ["备注", "说明", "留言", "remark", "note", "memo", "comment"],
+  department: ["部门", "所在部门", "科室", "department", "dept", "部署"],
+  position:   ["职位", "职务", "岗位", "position", "title", "job", "役職"],
+  remark:   ["备注", "说明", "留言", "remark", "note", "memo", "comment", "備考", "コメント"],
 };
 
 // 内置参数的中文名(新建资料套时预置这些字段)
@@ -265,7 +266,54 @@ function doFill(opts = {}) {
     if (filled || !auto) {
       toast(`已填充 ${filled} 个字段${skipped ? `,${skipped} 个跳过(已填写/未识别)` : ""}`);
     }
+
+    fillCheckable(dict, handled);
   });
+}
+
+// ---------- 勾选框/单选组 ----------
+// 识别 type=checkbox/radio:线索命中参数,且参数值为布尔语义
+// (true/false、是/否、对/错、on/off、1/0、同意/不同意)时自动勾选。
+// 单选组:值与选项文本/value 匹配的那个被选中。已勾选的不动。
+function truthy(v) {
+  const s = String(v).trim().toLowerCase();
+  return ["true", "是", "对", "同意", "on", "1", "yes", "y", "勾选", "选中"].includes(s);
+}
+function falsy(v) {
+  const s = String(v).trim().toLowerCase();
+  return ["false", "否", "不对", "不同意", "off", "0", "no", "n", "不勾选", "不选中"].includes(s);
+}
+
+function setCheck(el, want) {
+  if (el.checked === want) return false; // 已是目标状态,不动
+  el.click(); // 走原生点击,让页面框架(React/Vue)收到完整交互事件
+  return true;
+}
+
+function fillCheckable(dict, handled) {
+  const boxes = Array.from(
+    document.querySelectorAll('input[type=checkbox], input[type=radio]')
+  ).filter((el) => el.getClientRects().length > 0 && !el.disabled);
+  for (const el of boxes) {
+    if (handled.has(el)) continue;
+    const key = matchKeys(clueOf(el), dict)[0];
+    if (!key) continue;
+    const val = fieldValue(key);
+    if (val === "") continue;
+    if (el.type === "checkbox") {
+      let want = null;
+      if (truthy(val)) want = true;
+      else if (falsy(val)) want = false;
+      if (want !== null && setCheck(el, want)) flash(el);
+    } else {
+      // radio:按选项文本/value 与参数值匹配
+      const opt = String(val).trim().toLowerCase();
+      const label = (clueOf(el).includes(opt) ||
+        String(el.value).toLowerCase() === opt ||
+        (el.labels && Array.from(el.labels).some((l) => l.textContent.trim().toLowerCase() === opt)));
+      if (label && !el.checked && setCheck(el, true)) flash(el);
+    }
+  }
 }
 
 // ---------- 手动设置字段(右键菜单触发) ----------
@@ -389,25 +437,34 @@ function toast(text) {
 // 也会防抖触发扫描。已填写的字段在 doFill 里统一跳过,不会重复填。
 let autoOn = false;
 let autoTimer = null;
+let whitelist = [];
+
+// 白名单非空时,自动填充只对名单内域名生效;手动触发不受限
+function siteAllowed() {
+  if (!whitelist.length) return true;
+  const host = location.hostname;
+  return whitelist.some((d) => host === d || host.endsWith("." + d));
+}
 
 function scheduleAutoFill(delay = 800) {
   clearTimeout(autoTimer);
   autoTimer = setTimeout(() => {
-    if (autoOn) doFill({ auto: true });
+    if (autoOn && siteAllowed()) doFill({ auto: true });
   }, delay);
 }
 
 (async () => {
   guard(async () => {
     await loadProfiles();
-    const { autofill = false } = await chrome.storage.local.get("autofill");
-    autoOn = !!autofill;
-    if (autoOn) doFill({ auto: true });
+    const settings = await chrome.storage.local.get(["autofill", "siteWhitelist"]);
+    whitelist = Array.isArray(settings.siteWhitelist) ? settings.siteWhitelist : [];
+    autoOn = !!settings.autofill;
+    if (autoOn && siteAllowed()) doFill({ auto: true });
   });
 })();
 
 const domObserver = new MutationObserver((muts) => {
-  if (!autoOn) return;
+  if (!autoOn || !siteAllowed()) return;
   const hasNewField = muts.some((m) =>
     Array.from(m.addedNodes).some(
       (n) =>
@@ -420,19 +477,24 @@ const domObserver = new MutationObserver((muts) => {
 });
 domObserver.observe(document.documentElement, { childList: true, subtree: true });
 
-// ---------- 存储变化:改资料/切资料套/开关,实时生效 ----------
+// ---------- 存储变化:改资料/切资料套/开关/白名单,实时生效 ----------
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== "local") return;
+  if (changes.siteWhitelist) {
+    whitelist = Array.isArray(changes.siteWhitelist.newValue)
+      ? changes.siteWhitelist.newValue
+      : [];
+  }
   if (changes.profiles || changes.activeProfileId || changes.profile) {
     guard(() =>
       loadProfiles().then(() => {
-        if (autoOn) doFill({ auto: true }); // 自动模式下,切了资料套立刻按新套重扫
+        if (autoOn && siteAllowed()) doFill({ auto: true }); // 自动模式下,切了资料套立刻按新套重扫
       })
     );
   }
   if (changes.autofill) {
     autoOn = !!changes.autofill.newValue;
-    if (autoOn) doFill({ auto: true });
+    if (autoOn && siteAllowed()) doFill({ auto: true });
   }
 });
 

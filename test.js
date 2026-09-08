@@ -17,6 +17,8 @@ const dom = new JSDOM(
     <div><span>家长姓名</span><input id="f-parent" name="jz_xm3"></div>
     <div><span>学生姓名</span><input id="f-student" name="stu_xm"></div>
     <div><span>电话号码</span><input id="rmobile" placeholder="电话号码 *"></div>
+    <div><span>我同意服务条款</span><input type="checkbox" id="f-agree"></div>
+    <div><span>性别单选</span><label><input type="radio" name="gender_r" value="男">男</label><label><input type="radio" name="gender_r" value="女">女</label></div>
   </form></body></html>`,
   { url: "https://example.com/form" }
 );
@@ -60,6 +62,7 @@ const profiles = [
       { key: "company", label: "公司", value: "某某科技有限公司" },
       { key: "address", label: "详细地址", value: "北京市海淀区中关村大街1号" },
       { key: "家长姓名", label: "家长姓名", value: "王五" }, // 自定义参数
+      { key: "agree", label: "我同意服务条款", value: "是" }, // 勾选框布尔语义
     ],
   },
   {
@@ -90,8 +93,10 @@ global.chrome = {
 // ---- 加载真实的 content.js ----
 // content.js 现在整体包裹在 IIFE 里(防重复注入的 const 冲突),
 // 通过钩子把 doFill 暴露出来供测试调用。
+const FF_SOURCE = fs.readFileSync(__dirname + "/content.js", "utf8");
+globalThis.__FF_TEST_SOURCE__ = FF_SOURCE;
 globalThis.__FF_TEST_HOOK__ = (api) => (globalThis.doFill = api.doFill);
-eval(fs.readFileSync(__dirname + "/content.js", "utf8"));
+eval(FF_SOURCE);
 
 (async () => {
   await doFill();
@@ -132,7 +137,28 @@ eval(fs.readFileSync(__dirname + "/content.js", "utf8"));
   await doFill({ auto: true });
   assert.strictEqual(val("rmobile"), "17859911022", "phone 无值时回退到自定义「电话号码」参数");
 
-  console.log("✅ 全部 16 项断言通过:字典识别、候选回退、自定义参数识别、下拉匹配、React 受控组件、固定值映射、资料绑定映射、多套切换、已填写跳过均生效");
+  // 勾选框:布尔语义参数("是")自动勾选;单选组按选项文本匹配
+  assert.strictEqual(document.getElementById("f-agree").checked, true, "勾选框按「是」语义勾选");
+  assert.strictEqual(
+    document.querySelector('input[name=gender_r][value="男"]').checked,
+    true,
+    "单选组按选项文本匹配选中"
+  );
+  // 单选组:clue 含"性别单选"+label 男/女 → gender 参数值"男" → 选中"男"
+
+  // CSV 解析:引号包裹、逗号转义、多行(parseCSV 定义在 popup.js)
+  const popupSrc = fs.readFileSync(__dirname + "/popup.js", "utf8");
+  const parseCSV = new Function(
+    popupSrc.match(/function parseCSV[\s\S]*?\n}/)[0] + "\nreturn parseCSV;"
+  )();
+  const parsed = parseCSV('姓名,手机,备注\n"张,三","138","含""引号"""');
+  assert.deepStrictEqual(
+    parsed,
+    [["姓名", "手机", "备注"], ["张,三", "138", '含"引号"']],
+    "CSV 解析支持引号转义"
+  );
+
+  console.log("✅ 全部 20 项断言通过:字典识别、候选回退、自定义参数识别、下拉匹配、勾选框/单选组、React 受控组件、固定值映射、资料绑定映射、多套切换、已填写跳过、CSV 解析均生效");
 })().catch((e) => {
   console.error("❌", e.message);
   process.exit(1);

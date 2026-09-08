@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>离线表单秒填 · 设置</title>
+<style>
+  * { box-sizing: border-box; }
+  body { max-width: 640px; margin: 0 auto; padding: 24px 16px 40px; font: 14px/1.6 system-ui; background: #eef1f6; color: #222; }
+  header { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; }
+  header .logo { font-size: 22px; }
+  header h1 { margin: 0; font-size: 18px; }
+  .panel { background: #fff; border: 1px solid #e4e8f0; border-radius: 12px; padding: 16px 18px 18px; margin-bottom: 16px; }
+  .panel h2 { margin: 0 0 4px; font-size: 15px; color: #2b6cf0; }
+  .panel p { margin: 0 0 12px; color: #8a93a5; font-size: 12.5px; }
+  .wl-row { display: flex; gap: 8px; margin-bottom: 12px; }
+  .wl-row input { flex: 1; padding: 8px 10px; border: 1px solid #dfe3ea; border-radius: 8px; font-size: 14px; }
+  .btn { padding: 8px 16px; border: 0; border-radius: 8px; cursor: pointer; font-size: 13.5px; }
+  .primary { background: #2b6cf0; color: #fff; }
+  .ghost { background: #eef1f6; color: #333; }
+  .danger { background: #fdeaea; color: #e0453a; }
+  .mini { padding: 5px 10px; font-size: 12.5px; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; background: #eef1f6; border-radius: 999px; padding: 5px 12px; margin: 0 8px 8px 0; font-size: 13px; }
+  .chip button { border: 0; background: none; color: #e0453a; cursor: pointer; font-size: 13px; padding: 0; }
+  .empty { color: #9aa3b2; font-size: 13px; padding: 6px 0 2px; }
+  #status { color: #2e7d32; min-height: 20px; font-size: 13px; margin-top: 8px; }
+  .radio-row { display: flex; gap: 18px; margin-bottom: 8px; }
+  .radio-row label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+</style>
+</head>
+<body>
+<header><span class="logo">🧩</span><h1>离线表单秒填 · 设置</h1></header>
+
+<div class="panel">
+  <h2>自动填充范围</h2>
+  <p>控制「自动填充开关」在哪些网站生效;手动点按钮/右键填充不受此限制。</p>
+  <div class="radio-row">
+    <label><input type="radio" name="wlmode" value="all" checked>所有网站</label>
+    <label><input type="radio" name="wlmode" value="whitelist">仅白名单网站</label>
+  </div>
+  <div class="wl-row">
+    <input id="wl-input" placeholder="输入域名,如 zoho.com.cn(子域名自动包含)">
+    <button id="wl-add" class="btn primary mini">＋ 添加</button>
+  </div>
+  <div id="wl-list"></div>
+</div>
+
+<div class="panel">
+  <h2>数据</h2>
+  <p>资料套、映射与设置的备份文件(与弹窗里的导入导出相同格式)。</p>
+  <button id="export" class="btn ghost">⬇ 导出数据</button>
+  <button id="import" class="btn ghost">⬆ 导入数据</button>
+  <input type="file" id="import-file" accept=".json,application/json" style="display:none">
+  <div id="status"></div>
+</div>
+
+<script src="options.js"></script>
+</body>
+</html>

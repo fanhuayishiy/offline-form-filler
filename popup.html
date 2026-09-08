@@ -117,8 +117,11 @@
       <button id="export" class="btn ghost mini">⬇ 导出数据</button>
       <button id="import" class="btn ghost mini">⬆ 导入数据</button>
       <input type="file" id="import-file" accept=".json,application/json" style="display:none">
-      <span class="muted" style="font-size:12px">换浏览器/电脑时带走资料与映射</span>
+      <input type="file" id="import-csv" accept=".csv,text/csv" style="display:none">
+      <button id="import-csv-btn" class="btn ghost mini">⬆ 导入 CSV</button>
+      <button id="open-options" class="btn ghost mini" title="白名单等高级设置">⚙ 设置</button>
     </div>
+    <div class="muted" style="font-size:12px;margin-top:6px">换浏览器/电脑时带走资料与映射;CSV 可批量建资料套</div>
 
     <div class="hint">自定义参数名会参与自动识别:页面上出现"家长姓名"字样即可命中同名参数。识别不了的字段,右键「设置此字段」从下拉里绑定参数。</div>
   </section>

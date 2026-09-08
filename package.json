@@ -1,10 +1,11 @@
 {
   "name": "offline-form-filler",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "纯离线的网页表单自动填充浏览器扩展(Manifest V3,零网络请求)",
   "private": true,
   "scripts": {
-    "test": "node test.js"
+    "test": "node test.js",
+    "build:firefox": "node build-firefox.mjs"
   },
   "devDependencies": {
     "jsdom": "^24.0.0"
