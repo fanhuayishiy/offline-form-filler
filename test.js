@@ -87,7 +87,7 @@ global.chrome = {
     },
     onChanged: { addListener: () => {} },
   },
-  runtime: { onMessage: { addListener: () => {} } },
+  runtime: { id: "test-extension", onMessage: { addListener: () => {} } },
 };
 
 // ---- 加载真实的 content.js ----
