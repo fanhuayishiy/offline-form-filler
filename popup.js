@@ -174,14 +174,15 @@ function setStatus(text) {
   setTimeout(() => ($("#status").textContent = ""), 2500);
 }
 
-// 本窗口是独立弹窗,要填的是"普通浏览器窗口"里的活动标签页
+// action 弹窗附着在当前浏览器窗口上,currentWindow 即浏览器窗口。
+// 不用 chrome.windows.query——部分 Chromium 内核不提供完整 windows API。
 $("#fill").onclick = async () => {
   try {
-    const wins = await chrome.windows.query({ normal: true });
-    const win = wins.find((w) => w.focused) || wins[0];
-    if (!win) return setStatus("无法获取当前标签页");
-    const [tab] = await chrome.tabs.query({ active: true, windowId: win.id });
-    if (!tab || !tab.id) return setStatus("当前窗口没有活动标签页");
+    let [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab || !tab.id) {
+      [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+    }
+    if (!tab || !tab.id) return setStatus("无法获取当前标签页");
 
     // 浏览器内部页面(chrome:// 设置页、新标签页、商店等)禁止注入,提前给出明确提示
     if (!/^https?:/i.test(tab.url || "")) {

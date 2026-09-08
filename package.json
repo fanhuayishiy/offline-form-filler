@@ -1,6 +1,6 @@
 {
   "name": "offline-form-filler",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "纯离线的网页表单自动填充浏览器扩展(Manifest V3,零网络请求)",
   "private": true,
   "scripts": {
