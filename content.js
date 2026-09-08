@@ -71,16 +71,33 @@ function fieldValue(key) {
 }
 
 // ---------- 扩展上下文失效保护 ----------
-// 扩展更新/重载(↻)后,已打开页面里驻留的旧脚本会失去 chrome.* 访问权,
-// 调用会抛 "Extension context invalidated"。统一兜底:提示一次,然后休眠。
+// 扩展更新/重载(↻)后,已打开页面里驻留的旧脚本会失去 chrome.* 访问权。
+// 不同内核表现不同:Chrome 抛 "Extension context invalidated",
+// 部分内核则是 chrome.storage/runtime 直接变 undefined。
+// 统一兜底:提示一次,然后休眠。
 let ctxDead = false;
+function ctxValid() {
+  try {
+    return !!(chrome && chrome.runtime && chrome.runtime.id && chrome.storage && chrome.storage.local);
+  } catch (e) {
+    return false;
+  }
+}
 function isCtxError(e) {
-  return String((e && e.message) || e).includes("Extension context invalidated");
+  const s = String((e && e.message) || e);
+  return (
+    s.includes("Extension context invalidated") ||
+    s.includes("reading 'local'") ||
+    s.includes("reading 'runtime'")
+  );
 }
 function guard(fn) {
   if (ctxDead) return Promise.resolve();
   return Promise.resolve()
-    .then(fn)
+    .then(() => {
+      if (!ctxValid()) throw new Error("Extension context invalidated");
+      return fn();
+    })
     .catch((e) => {
       if (isCtxError(e)) {
         ctxDead = true;
