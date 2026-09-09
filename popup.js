@@ -25,11 +25,13 @@ const KEY_LABEL = {
 // ---------- 多套资料状态 ----------
 let profiles = [];
 let activeId = null;
+let mappingsCache = []; // 映射的内存副本:参数改名时同步更新绑定
 
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 const activeProfile = () => profiles.find((p) => p.id === activeId);
-const builtinFields = () =>
-  Object.entries(KEY_LABEL).map(([key, label]) => ({ key, label, value: "" }));
+// 新建资料套的模板:只带最基础的三个参数,其余用「＋ 添加参数」按需加
+const BASIC_KEYS = ["name", "phone", "email"];
+const templateFields = () => BASIC_KEYS.map((key) => ({ key, label: KEY_LABEL[key], value: "" }));
 
 async function saveAll() {
   await chrome.storage.local.set({ profiles, activeProfileId: activeId });
@@ -43,7 +45,7 @@ async function loadAll() {
     const legacy = data.profile || {};
     const fields = Object.keys(legacy).length
       ? Object.entries(legacy).map(([k, v]) => ({ key: k, label: KEY_LABEL[k] || k, value: String(v) }))
-      : builtinFields();
+      : templateFields();
     profiles = [{ id: "default", title: "默认", fields }];
     activeId = "default";
     await saveAll();
@@ -63,7 +65,7 @@ function renderProfileSelect() {
     .join("");
 }
 
-// ---------- 参数列表(内置 + 自定义,可增删) ----------
+// ---------- 参数列表(全部可删/可改名) ----------
 function renderFields() {
   const list = $("#field-list");
   list.innerHTML = "";
@@ -72,9 +74,37 @@ function renderFields() {
     const row = document.createElement("div");
     row.className = "row";
 
+    // 参数名可编辑:改名同步 label 与 key(映射绑定、自动识别词都用 key)
     const lab = document.createElement("label");
     lab.textContent = f.label;
-    lab.title = KEY_LABEL[f.key] == null ? `自定义参数:${f.label}` : `内置参数:${f.key}`;
+    lab.title = "点击改名(同步更新识别词与映射绑定)";
+    lab.style.cursor = "pointer";
+    lab.onclick = () => {
+      const inp = document.createElement("input");
+      inp.type = "text";
+      inp.value = f.label;
+      inp.style.cssText = "width:96px;flex-shrink:0;padding:5px 8px;border:1px solid #2b6cf0;border-radius:8px;font-size:13px";
+      lab.replaceWith(inp);
+      inp.focus();
+      inp.select();
+      const finish = () => {
+        if (!inp.isConnected) return; // Enter 已处理,blur 不重复触发
+        const name = inp.value.trim();
+        if (name && name !== f.label) renameField(p, f, name);
+        renderFields();
+      };
+      inp.onblur = finish;
+      inp.onkeydown = (e) => {
+        if (e.key === "Enter") {
+          inp.onblur = null;
+          finish();
+        }
+        if (e.key === "Escape") {
+          inp.onblur = null;
+          renderFields();
+        }
+      };
+    };
 
     const inp = document.createElement("input");
     inp.type = "text";
@@ -83,20 +113,48 @@ function renderFields() {
 
     row.append(lab, inp);
 
-    // 自定义参数可删除,内置参数不可删(避免误删)
-    if (KEY_LABEL[f.key] == null) {
-      const del = document.createElement("button");
-      del.textContent = "✕";
-      del.className = "xdel";
-      del.title = "删除该自定义参数";
-      del.onclick = () => {
-        p.fields.splice(i, 1);
-        renderFields();
-      };
-      row.append(del);
-    }
+    // 所有参数都可删除(至少保留一个参数,避免空套)
+    const del = document.createElement("button");
+    del.textContent = "✕";
+    del.className = "xdel";
+    del.title = "删除该参数";
+    del.onclick = () => {
+      if (p.fields.length <= 1) return setStatus("至少保留一个参数");
+      const used = mappingsCache.some((m) => m.key === f.key);
+      if (
+        used &&
+        !confirm(`参数「${f.label}」被手动映射绑定中,删除后那些映射将填不上值。确定删除?`)
+      ) {
+        return;
+      }
+      p.fields.splice(i, 1);
+      renderFields();
+    };
+    row.append(del);
     list.append(row);
   });
+}
+
+// 改名:同步 key(label 与 key 一同换,保证映射 m.key、识别词字典都能跟上)
+function renameField(profile, field, newName) {
+  const oldKey = field.key;
+  field.key = newName;
+  field.label = newName;
+  // 同步其它资料套中的同名参数(跨套绑定是设计约定)
+  profiles.forEach((p) => {
+    p.fields.forEach((f) => {
+      if (f.key === oldKey) {
+        f.key = newName;
+        f.label = newName;
+      }
+    });
+  });
+  // 同步映射绑定(异步落库,不阻塞改名流程)
+  mappingsCache.forEach((m) => {
+    if (m.key === oldKey) m.key = newName;
+  });
+  chrome.storage.local.set({ mappings: mappingsCache.slice() });
+  setStatus(`已改名「${newName}」,识别词与映射同步更新,记得保存资料`);
 }
 
 $("#field-add").onclick = () => {
@@ -119,7 +177,7 @@ $("#profile-select").onchange = async (e) => {
 };
 
 $("#prof-add").onclick = async () => {
-  const p = { id: uid(), title: `资料${profiles.length + 1}`, fields: builtinFields() };
+  const p = { id: uid(), title: `资料${profiles.length + 1}`, fields: templateFields() };
   profiles.push(p);
   activeId = p.id;
   await saveAll();
@@ -365,6 +423,7 @@ $("#autofill").onchange = async (e) => {
 // ---------- 手动映射列表 ----------
 async function loadMappings() {
   const { mappings = [] } = await chrome.storage.local.get("mappings");
+  mappingsCache = mappings;
   const list = $("#map-list");
   if (!mappings.length) {
     list.innerHTML = '<div class="empty">暂无映射<br>在网页输入框上右键「设置此字段」添加</div>';
@@ -375,7 +434,7 @@ async function loadMappings() {
     const div = document.createElement("div");
     div.className = "map";
     const target = m.key
-      ? `<b>资料·${esc(KEY_LABEL[m.key] || m.key)}</b><span style="color:#8a93a5">(跟随当前资料套)</span>`
+      ? `<b>资料·${esc(m.key)}</b><span style="color:#8a93a5">(跟随当前资料套)</span>`
       : `<b>${esc(m.value)}</b>`;
     div.innerHTML = `
       <div class="host">${esc(m.host || "(所有网站)")}</div>

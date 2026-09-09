@@ -443,12 +443,14 @@ function captureField() {
         flash(el);
       }
       panel.remove();
-      toast(
-        key
-          ? `已绑定资料「${activeFields[key] ? activeFields[key].label : key}」,资料改了自动跟着变`
-          : `已记住该字段,以后自动填"${value}"`
-      );
-    });
+    toast(
+      key
+        ? `已绑定资料「${activeFields[key] ? activeFields[key].label : key}」,资料改了自动跟着变`
+        : `已记住该字段,以后自动填"${value}"`
+    );
+    // 重扫一遍,让刚才保存的映射立即生效
+    doFill();
+  });
   };
 }
 
